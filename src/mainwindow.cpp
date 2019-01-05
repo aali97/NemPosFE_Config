@@ -22,6 +22,10 @@ MainWindow::MainWindow(QWidget *parent) :
             MainWindow::on_lineEditIP_textChanged);
     connect(ui->lEditServerIP, QLineEdit::textChanged, this,
             MainWindow::on_lineEditIP_textChanged);
+    connect(ui->lEditUsername, QLineEdit::textChanged, this,
+            MainWindow::on_lEditCredential_textChanged);
+    connect(ui->lEditPassword, QLineEdit::textChanged, this,
+            MainWindow::on_lEditCredential_textChanged);
 }
 
 MainWindow::~MainWindow()
@@ -47,6 +51,57 @@ void MainWindow::setStatus(const QString &text, StatusType type)
     ui->statusBar->setStyleSheet("color: " + color);
 }
 
+void MainWindow::on_btnLoad_clicked()
+{
+    setStatus("");
+    bool haveInfo = true;
+    if (ui->lEditPostgresIP->text().isEmpty()) {
+        ui->lEditPostgresIP->setStyleSheet("border: 1px solid red");
+        haveInfo = false;
+    }
+    if (!ui->lEditPostgresIP->hasAcceptableInput())
+        haveInfo = false;
+    if (ui->lEditUsername->text().isEmpty()) {
+        ui->lEditUsername->setStyleSheet("border: 1px solid red");
+        haveInfo = false;
+    }
+    if (ui->lEditPassword->text().isEmpty()) {
+        ui->lEditPassword->setStyleSheet("border: 1px solid red");
+        haveInfo = false;
+    }
+    if (haveInfo) {
+        ui->btnLoad->setEnabled(false);
+        //Do work
+        ui->btnLoad->setEnabled(true);
+        ui->btnCreate->setEnabled(ui->listDBs->count());
+    }
+    else
+        setStatus("Please fill in the missing fields", Error);
+}
+
+void MainWindow::on_btnCreate_clicked()
+{
+    setStatus("");
+    bool canCreate = true;
+    if (ui->listDBs->count() == 0 || ui->listDBs->selectedItems().count() == 0) {
+        ui->listDBs->setStyleSheet("border: 1px solid red");
+        canCreate = false;
+        setStatus("Select at least one shop to continue", Error);
+    }
+    else if (ui->lEditNemposFePath->text().isEmpty()) {
+        ui->lEditNemposFePath->setStyleSheet("border: 1px solid red");
+        canCreate = false;
+        setStatus("Select NemPosFE path to continue", Error);
+    }
+    if (canCreate) {
+        ui->btnLoad->setEnabled(false);
+        ui->btnCreate->setEnabled(false);
+        //Do work
+        ui->btnLoad->setEnabled(true);
+        ui->btnCreate->setEnabled(true);
+    }
+}
+
 void MainWindow::on_btnBrowse_clicked()
 {
     QString dir = QFileDialog::getExistingDirectory(this, tr("Open Directory"),
@@ -55,7 +110,7 @@ void MainWindow::on_btnBrowse_clicked()
                                                 | QFileDialog::DontResolveSymlinks);
     if (dir != "") {
         ui->lEditNemposFePath->setText(dir);
-        ui->lEditNemposFePath->setStyleSheet("border: 1px solid green");
+        ui->lEditNemposFePath->setStyleSheet("");
     }
 }
 
@@ -73,12 +128,10 @@ void MainWindow::on_lineEditIP_textChanged(const QString&)
     }
 }
 
-void MainWindow::on_btnLoad_clicked()
+void MainWindow::on_lEditCredential_textChanged(const QString&)
 {
-
-}
-
-void MainWindow::on_btnCreate_clicked()
-{
-
+    QObject *source = sender();
+    QLineEdit *lineEdit = dynamic_cast<QLineEdit*>(source);
+    if (lineEdit)
+        lineEdit->setStyleSheet("");
 }

@@ -23,13 +23,11 @@ public:
     ~MainWindow();
 
 private slots:
-    void on_btnBrowse_clicked();
-
-    void on_lineEditIP_textChanged(const QString&);
-
     void on_btnLoad_clicked();
-
     void on_btnCreate_clicked();
+    void on_btnBrowse_clicked();
+    void on_lineEditIP_textChanged(const QString&);
+    void on_lEditCredential_textChanged(const QString&);
 
 private:
     void setStatus(const QString &text, StatusType type = Info);
