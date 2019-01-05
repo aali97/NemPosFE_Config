@@ -8,10 +8,6 @@ MainWindow::MainWindow(QWidget *parent) :
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-    connect(ui->leIPDB, QLineEdit::textChanged, this,
-            MainWindow::on_lineEditIP_textChanged);
-    connect(ui->leAddress, QLineEdit::textChanged, this,
-            MainWindow::on_lineEditIP_textChanged);
 
     QString ipRange = "(?:[0-1]?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])";
     QRegularExpression ipRegex("^" + ipRange
@@ -19,8 +15,13 @@ MainWindow::MainWindow(QWidget *parent) :
                                + "(\\." + ipRange + ")"
                                + "(\\." + ipRange + ")$");
     QRegularExpressionValidator *ipValidator = new QRegularExpressionValidator(ipRegex, this);
-    ui->leIPDB->setValidator(ipValidator);
-    ui->leAddress->setValidator(ipValidator);
+    ui->lEditPostgresIP->setValidator(ipValidator);
+    ui->lEditServerIP->setValidator(ipValidator);
+
+    connect(ui->lEditPostgresIP, QLineEdit::textChanged, this,
+            MainWindow::on_lineEditIP_textChanged);
+    connect(ui->lEditServerIP, QLineEdit::textChanged, this,
+            MainWindow::on_lineEditIP_textChanged);
 }
 
 MainWindow::~MainWindow()
@@ -53,8 +54,8 @@ void MainWindow::on_btnBrowse_clicked()
                                                 QFileDialog::ShowDirsOnly
                                                 | QFileDialog::DontResolveSymlinks);
     if (dir != "") {
-        ui->lePathNemposFE->setText(dir);
-        ui->lePathNemposFE->setStyleSheet("border: 1px solid green");
+        ui->lEditNemposFePath->setText(dir);
+        ui->lEditNemposFePath->setStyleSheet("border: 1px solid green");
     }
 }
 
@@ -70,4 +71,14 @@ void MainWindow::on_lineEditIP_textChanged(const QString&)
         else
             lineEdit->setStyleSheet("border: 1px solid red");
     }
+}
+
+void MainWindow::on_btnLoad_clicked()
+{
+
+}
+
+void MainWindow::on_btnCreate_clicked()
+{
+
 }

@@ -27,6 +27,10 @@ private slots:
 
     void on_lineEditIP_textChanged(const QString&);
 
+    void on_btnLoad_clicked();
+
+    void on_btnCreate_clicked();
+
 private:
     void setStatus(const QString &text, StatusType type = Info);
 
