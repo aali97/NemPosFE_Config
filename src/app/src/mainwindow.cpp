@@ -2,6 +2,10 @@
 #include "ui_mainwindow.h"
 
 #include <QFileDialog>
+#include <QMessageBox>
+
+#include "pq.h"
+#include <libpq-fe.h>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -31,6 +35,58 @@ MainWindow::MainWindow(QWidget *parent) :
 MainWindow::~MainWindow()
 {
     delete ui;
+}
+
+void MainWindow::retrieveDatabases()
+{
+    QString host = ui->lEditPostgresIP->text();
+    QString port = QString::number(ui->spinBox->value());
+    QString user = ui->lEditUsername->text();
+    QString password = ui->lEditPassword->text();
+    QString connection_string = ("hostaddr=@h port=@po dbname=postgres user=@u password=@pa");
+    connection_string.replace("@h", host);
+    connection_string.replace("@po", port);
+    connection_string.replace("@u", user);
+    connection_string.replace("@pa", password);
+    std::string connection_string_std = connection_string.toStdString();
+    try {
+        std::shared_ptr< tao::pq::connection > conn =
+                tao::pq::connection::create(connection_string_std);
+        if (conn->is_open()) {
+            setStatus("Connected to " + host + ":" + port, Success);
+
+            conn->prepare("GetDatabases", "SELECT datname FROM pg_database"
+                                          " WHERE datistemplate = false"
+                                          " AND datname LIKE '%_dev';");
+
+            const auto res = conn->execute("GetDatabases");
+            if (res.empty())
+                setStatus("No dev databases found");
+            else {
+                for (size_t i = 0; i < res.size(); i++) {
+                    QString db = QString::fromUtf8(res.get(i, 0));
+                    QListWidgetItem *item= new QListWidgetItem(db, ui->listDBs);
+                    item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+                    item->setCheckState(Qt::Unchecked);
+                    ui->listDBs->addItem(item);
+                }
+                setStatus("Databases loaded successfully", Success);
+            }
+
+            conn->close();
+            if (conn != nullptr && conn->is_open())
+                setStatus("Failed to close", Error);
+            else
+                setStatus("Closed successfully", Success);
+        }
+        else
+            setStatus("Connection failed", Error);
+    } catch(std::runtime_error e) {
+        setStatus("Error", Error);
+        QMessageBox msgBox(this);
+        msgBox.setText(e.what());
+        msgBox.exec();
+    }
 }
 
 void MainWindow::setStatus(const QString &text, StatusType type)
@@ -71,7 +127,7 @@ void MainWindow::on_btnLoad_clicked()
     }
     if (haveInfo) {
         ui->btnLoad->setEnabled(false);
-        //Do work
+        retrieveDatabases();
         ui->btnLoad->setEnabled(true);
         ui->btnCreate->setEnabled(ui->listDBs->count());
     }

@@ -28,6 +28,9 @@ ui_*.h
 *.jsc
 Makefile*
 *build-*
+*.Debug
+*.Release
+user*
 
 # Qt unit tests
 target_wrapper.*
@@ -45,6 +48,7 @@ CMakeLists.txt.user*
 # Folders
 debug/*
 release/*
+libs-3rdparty/*
 
-# Temp files
-user*
+# Output files
+*.exe

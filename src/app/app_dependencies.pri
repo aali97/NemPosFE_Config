@@ -1,0 +1,2 @@
+LIBRARY_DEPENDS += \
+                taopq

@@ -30,6 +30,7 @@ private slots:
     void on_lEditCredential_textChanged(const QString&);
 
 private:
+    void retrieveDatabases();
     void setStatus(const QString &text, StatusType type = Info);
 
     Ui::MainWindow *ui;
