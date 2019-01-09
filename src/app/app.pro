@@ -34,11 +34,13 @@ INCLUDEPATH += $$PQ_INCLUDE_PATH
 DEPENDPATH += $$PQ_INCLUDE_PATH
 
 SOURCES += \
-        src/main.cpp \
-        src/mainwindow.cpp
+		src/main.cpp \
+		src/mainwindow.cpp \
+		src/simplecrypt.cpp
 
 HEADERS += \
-        include/mainwindow.h
+		include/mainwindow.h \
+		include/simplecrypt.h
 
 FORMS += \
         ui/mainwindow.ui

@@ -9,26 +9,22 @@
 #include <type_traits>
 #include <utility>
 
-namespace tao
+namespace taopq
 {
-   namespace pq
-   {
-      template< typename T, typename U >
-      struct result_traits< std::pair< T, U > >
-      {
-         using DT = std::decay_t< T >;
-         using DU = std::decay_t< U >;
+template< typename T, typename U >
+struct result_traits< std::pair< T, U > >
+{
+    using DT = std::decay_t< T >;
+    using DU = std::decay_t< U >;
 
-         static constexpr std::size_t size = result_traits_size< DT > + result_traits_size< DU >;
+    static constexpr std::size_t size = result_traits_size< DT > + result_traits_size< DU >;
 
-         [[nodiscard]] static std::pair< T, U > from( const row& row )
-         {
-            return std::pair< T, U >( row.get< DT >( 0 ), row.get< DU >( result_traits_size< DT > ) );
-         }
-      };
+    [[nodiscard]] static std::pair< T, U > from( const row& row )
+    {
+        return std::pair< T, U >( row.get< DT >( 0 ), row.get< DU >( result_traits_size< DT > ) );
+    }
+};
 
-   }  // namespace pq
-
-}  // namespace tao
+}  // namespace taopq
 
 #endif

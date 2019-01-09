@@ -7,26 +7,22 @@
 #include <cstdarg>
 #include <string>
 
-namespace tao
+namespace taopq
 {
-   namespace pq
-   {
-      namespace internal
-      {
+namespace internal
+{
 #ifdef WIN32
-         [[nodiscard]] std::string printf( const char* format, ... );
-         [[nodiscard]] std::string vprintf( const char* format, va_list ap );
+[[nodiscard]] std::string printf( const char* format, ... );
+[[nodiscard]] std::string vprintf( const char* format, va_list ap );
 #else
-         // clang-format off
-         [[nodiscard]] std::string printf( const char* format, ... ) __attribute__(( format( printf, 1, 2 ) ));
-         [[nodiscard]] std::string vprintf( const char* format, va_list ap ) __attribute__(( format( printf, 1, 0 ) ));
-         // clang-format on
+// clang-format off
+[[nodiscard]] std::string printf( const char* format, ... ) __attribute__(( format( printf, 1, 2 ) ));
+[[nodiscard]] std::string vprintf( const char* format, va_list ap ) __attribute__(( format( printf, 1, 0 ) ));
+// clang-format on
 #endif
 
-      }  // namespace internal
+}  // namespace internal
 
-   }  // namespace pq
-
-}  // namespace tao
+}  // namespace taopq
 
 #endif

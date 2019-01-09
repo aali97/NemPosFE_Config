@@ -7,25 +7,21 @@
 #include <string>
 #include <typeinfo>
 
-namespace tao
+namespace taopq
 {
-   namespace pq
-   {
-      namespace internal
-      {
-         [[nodiscard]] std::string demangle( const char* const symbol );
-         [[nodiscard]] std::string demangle( const std::type_info& type_info );
+namespace internal
+{
+[[nodiscard]] std::string demangle( const char* const symbol );
+[[nodiscard]] std::string demangle( const std::type_info& type_info );
 
-         template< typename T >
-         [[nodiscard]] std::string demangle()
-         {
-            return demangle( typeid( T ) );
-         }
+template< typename T >
+[[nodiscard]] std::string demangle()
+{
+    return demangle( typeid( T ) );
+}
 
-      }  // namespace internal
+}  // namespace internal
 
-   }  // namespace pq
-
-}  // namespace tao
+}  // namespace taopq
 
 #endif

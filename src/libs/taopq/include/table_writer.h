@@ -7,27 +7,23 @@
 #include <memory>
 #include <string>
 
-namespace tao
+namespace taopq
 {
-   namespace pq
-   {
-      class transaction;
+class transaction;
 
-      class table_writer
-      {
-      private:
-         std::shared_ptr< transaction > transaction_;
+class table_writer
+{
+private:
+    std::shared_ptr< transaction > transaction_;
 
-      public:
-         table_writer( const std::shared_ptr< transaction >& transaction, const std::string& statement );
-         ~table_writer();
+public:
+    table_writer( const std::shared_ptr< transaction >& transaction, const std::string& statement );
+    ~table_writer();
 
-         void insert( const std::string& data );
-         std::size_t finish();
-      };
+    void insert( const std::string& data );
+    std::size_t finish();
+};
 
-   }  // namespace pq
-
-}  // namespace tao
+}  // namespace taopq
 
 #endif

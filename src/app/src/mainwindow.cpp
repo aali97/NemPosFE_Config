@@ -1,11 +1,13 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
+#include <sstream>
+
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QSettings>
 
-#include "pq.h"
-#include <libpq-fe.h>
+#include "simplecrypt.h"
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -22,14 +24,20 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->lEditPostgresIP->setValidator(ipValidator);
     ui->lEditServerIP->setValidator(ipValidator);
 
-    connect(ui->lEditPostgresIP, QLineEdit::textChanged, this,
-            MainWindow::on_lineEditIP_textChanged);
     connect(ui->lEditServerIP, QLineEdit::textChanged, this,
-            MainWindow::on_lineEditIP_textChanged);
-    connect(ui->lEditUsername, QLineEdit::textChanged, this,
-            MainWindow::on_lEditCredential_textChanged);
+            MainWindow::on_lEditPostgresIP_textChanged);
     connect(ui->lEditPassword, QLineEdit::textChanged, this,
-            MainWindow::on_lEditCredential_textChanged);
+            MainWindow::on_lEditUsername_textChanged);
+
+    QStringList labels;
+    labels << "Database" << "Company" << "Shop" << "Exists" << "Create";
+    ui->tableShops->setColumnCount(labels.size());
+    ui->tableShops->setHorizontalHeaderLabels(labels);
+    ui->tableShops->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+
+    m_settingsFile = QDir::cleanPath(QApplication::applicationDirPath()
+                                     + QDir::separator() + "NemPosFE_Config.ini");
+    loadSettings();
 }
 
 MainWindow::~MainWindow()
@@ -37,56 +45,210 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
-void MainWindow::retrieveDatabases()
+void MainWindow::populateShopsTable()
 {
-    QString host = ui->lEditPostgresIP->text();
-    QString port = QString::number(ui->spinBox->value());
-    QString user = ui->lEditUsername->text();
-    QString password = ui->lEditPassword->text();
-    QString connection_string = ("hostaddr=@h port=@po dbname=postgres user=@u password=@pa");
-    connection_string.replace("@h", host);
-    connection_string.replace("@po", port);
-    connection_string.replace("@u", user);
-    connection_string.replace("@pa", password);
-    std::string connection_string_std = connection_string.toStdString();
     try {
-        std::shared_ptr< tao::pq::connection > conn =
-                tao::pq::connection::create(connection_string_std);
+        std::shared_ptr< taopq::connection > conn = makeConnection("postgres");
         if (conn->is_open()) {
-            setStatus("Connected to " + host + ":" + port, Success);
+            setStatus("Connected to " +
+                      QString::fromStdString(connectionUrl("postgres")), Success);
 
-            conn->prepare("GetDatabases", "SELECT datname FROM pg_database"
-                                          " WHERE datistemplate = false"
-                                          " AND datname LIKE '%_dev';");
-
-            const auto res = conn->execute("GetDatabases");
-            if (res.empty())
-                setStatus("No dev databases found");
+            std::vector<std::string> dbs = getDatabases(conn);
+            if (!dbs.size())
+                setStatus("No dev database found");
             else {
-                for (size_t i = 0; i < res.size(); i++) {
-                    QString db = QString::fromUtf8(res.get(i, 0));
-                    QListWidgetItem *item= new QListWidgetItem(db, ui->listDBs);
-                    item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
-                    item->setCheckState(Qt::Unchecked);
-                    ui->listDBs->addItem(item);
+                setStatus(QString::number(dbs.size()) + " dev databases found", Info);
+                std::vector<MainWindow::Shop> shops = getAllShops(dbs);
+                saveSettings();
+
+                ui->tableShops->setRowCount(0);
+                ui->tableShops->setRowCount(shops.size());
+
+                Shop *shop;
+                for (size_t i = 0; i < shops.size(); i++) {
+                    shop = &(shops[i]);
+                    addShopToTable(i, shop->Database, shop->CompanyName,
+                                   shop->ShopName, shop->FolderExists);
                 }
-                setStatus("Databases loaded successfully", Success);
+                setStatus("Shops loaded successfully", Success);
             }
 
             conn->close();
-            if (conn != nullptr && conn->is_open())
-                setStatus("Failed to close", Error);
-            else
-                setStatus("Closed successfully", Success);
+            if (conn->is_open())
+                setStatus("Failed to close database connection", Error);
         }
         else
-            setStatus("Connection failed", Error);
-    } catch(std::runtime_error e) {
-        setStatus("Error", Error);
+            setStatus("Failed to connect to " +
+                      QString::fromStdString(connectionUrl("postgres")), Error);
+    } catch (std::runtime_error &e) {
+        setStatus("Failed to connect to " +
+                  QString::fromStdString(connectionUrl("postgres")), Error);
         QMessageBox msgBox(this);
-        msgBox.setText(e.what());
+        msgBox.setText(QString::fromUtf8(e.what()));
         msgBox.exec();
     }
+}
+
+void MainWindow::addShopToTable(int index,
+                                const std::string &dbname,
+                                const std::string &companyName,
+                                const std::string &shopName,
+                                bool folderExists)
+{
+    QTableWidgetItem *item = new QTableWidgetItem(QString::fromStdString(dbname));
+    item->setFlags(item->flags() ^ Qt::ItemIsEditable);
+    ui->tableShops->setItem(index, 0, item);
+
+    item = new QTableWidgetItem(QString::fromStdString(companyName));
+    item->setFlags(item->flags() ^ Qt::ItemIsEditable);
+    ui->tableShops->setItem(index, 1, item);
+
+    item = new QTableWidgetItem(QString::fromStdString(shopName));
+    item->setFlags(item->flags() ^ Qt::ItemIsEditable);
+    ui->tableShops->setItem(index, 2, item);
+
+    //FolderExists
+    QWidget *checkBoxWidget = new QWidget();
+    QCheckBox *checkBox = new QCheckBox();
+    checkBox->setChecked(folderExists);
+    checkBox->setEnabled(false);
+    QHBoxLayout *layoutCheckBox = new QHBoxLayout(checkBoxWidget);
+    layoutCheckBox->addWidget(checkBox);
+    layoutCheckBox->setAlignment(Qt::AlignCenter);
+    layoutCheckBox->setContentsMargins(0,0,0,0);
+    ui->tableShops->setCellWidget(index, 3, checkBoxWidget);
+
+    //CreateFolder
+    checkBoxWidget = new QWidget();
+    checkBox = new QCheckBox();
+    checkBox->setChecked(false);
+    layoutCheckBox = new QHBoxLayout(checkBoxWidget);
+    layoutCheckBox->addWidget(checkBox);
+    layoutCheckBox->setAlignment(Qt::AlignCenter);
+    layoutCheckBox->setContentsMargins(0,0,0,0);
+    ui->tableShops->setCellWidget(index, 4, checkBoxWidget);
+}
+
+std::vector<std::string> MainWindow::getDatabases(
+        std::shared_ptr<taopq::connection> conn)
+{
+    std::vector<std::string> dbs;
+
+    if (conn->is_open()) {
+        conn->prepare("GetDatabases", "SELECT datname FROM pg_database"
+                                      " WHERE datistemplate = false"
+                                      " AND datname LIKE '%_dev';");
+
+        taopq::result res = conn->execute("GetDatabases");
+
+        if (!res.empty()) {
+            for (size_t i = 0; i < res.size(); i++)
+                dbs.push_back(res.get(i, i));
+        }
+    }
+
+    return dbs;
+}
+
+std::vector<MainWindow::Shop> MainWindow::getAllShops(const std::vector<std::string> &dbs)
+{
+    std::vector<MainWindow::Shop> shops;
+
+    for (size_t i = 0; i < dbs.size(); i++) {
+        setStatus("Retrieving " + QString::fromStdString(dbs[i]) + " shops");
+        std::vector<MainWindow::Shop> curr_shops = getShopsInDatabase(dbs[i]);
+        if (curr_shops.size())
+            shops.insert(shops.end(), curr_shops.begin(), curr_shops.end());
+    }
+
+    return shops;
+}
+
+std::vector<MainWindow::Shop> MainWindow::getShopsInDatabase(const std::string &dbname)
+{
+    std::vector<MainWindow::Shop> shops;
+
+    try {
+        std::shared_ptr<taopq::connection> conn = makeConnection(dbname);
+        if (conn->is_open()) {
+            setStatus("Connected to " +
+                      QString::fromStdString(connectionUrl(dbname)), Success);
+
+            conn->prepare("GetShops", "SELECT res_company.name as companyname,"
+                                      " scm_shops.name as shopname"
+                                      " FROM scm_shops"
+                                      " INNER JOIN res_company"
+                                      " ON scm_shops.company_id = res_company.id");
+            taopq::result res = conn->execute("GetShops");
+            if (!res.empty()) {
+                for (size_t i = 0; i < res.size(); i++) {
+                    Shop shop;
+                    shop.Database = dbname;
+                    shop.CompanyName = res.get(i, 0);
+                    shop.ShopName = res.get(i, 1);
+                    shops.push_back(shop);
+                }
+            }
+            conn->close();
+            if (conn->is_open())
+                setStatus("Failed to close database connection", Error);
+        }
+        else
+            setStatus("Failed to connect to " +
+                      QString::fromStdString(connectionUrl(dbname)), Error);
+    } catch (std::runtime_error &e) {
+        setStatus("Failed to connect to " +
+                  QString::fromStdString(connectionUrl(dbname)), Error);
+        QMessageBox msgBox(this);
+        msgBox.setText(QString::fromUtf8(e.what()));
+        msgBox.exec();
+    }
+
+    return shops;
+}
+
+std::shared_ptr<taopq::connection> MainWindow::makeConnection(const std::string &dbname)
+{
+    std::string conn_string = makeConnectionString(dbname);
+    return taopq::connection::create(conn_string);
+}
+
+std::string MainWindow::makeConnectionString(const std::string &dbname)
+{
+    //hostaddr='' port='' user='' password='' dbname=''
+    std::ostringstream ss;
+    ss << "hostaddr=" << host() << " port=" << port();
+    ss << " user=" << username() << " password=" << password();
+    ss << " dbname=" << dbname;
+    return ss.str();
+}
+
+std::string MainWindow::connectionUrl(const std::string &dbname)
+{
+    //user@host:port/dbname
+    std::ostringstream ss;
+    ss << username() << "@" << host() << ":" << port() << "/" << dbname;
+    return ss.str();
+}
+
+std::string MainWindow::host()
+{
+    return ui->lEditPostgresIP->text().toStdString();
+}
+
+std::string MainWindow::port()
+{
+    return QString::number(ui->spinPostgresPort->value()).toStdString();
+}
+
+std::string MainWindow::username()
+{
+    return ui->lEditUsername->text().toStdString();
+}
+
+std::string MainWindow::password()
+{
+    return ui->lEditPassword->text().toStdString();
 }
 
 void MainWindow::setStatus(const QString &text, StatusType type)
@@ -105,6 +267,60 @@ void MainWindow::setStatus(const QString &text, StatusType type)
             break;
     }
     ui->statusBar->setStyleSheet("color: " + color);
+}
+
+void MainWindow::saveSettings()
+{
+    QSettings settings(m_settingsFile);
+
+    settings.setValue("postgres_ip", ui->lEditPostgresIP->text());
+    settings.setValue("postgres_port", ui->spinPostgresPort->value());
+
+    QString user = ui->lEditUsername->text();
+    QString pass = ui->lEditPassword->text();
+
+    if (!user.isEmpty() || !pass.isEmpty()) {
+        SimpleCrypt crypto(CipherKey);
+        if (!user.isEmpty())
+            user = crypto.encryptToString(user);
+        if (!pass.isEmpty())
+            pass = crypto.encryptToString(pass);
+    }
+
+    settings.setValue("postgres_user", user);
+    settings.setValue("postgres_pass", pass);
+
+    settings.setValue("nemposfe_path", ui->lEditNemposFePath->text());
+    settings.setValue("server_ip", ui->lEditServerIP->text());
+    settings.setValue("server_port", ui->spinServerPort->value());
+    settings.setValue("https", ui->cbHttps->isChecked());
+}
+
+void MainWindow::loadSettings()
+{
+    QSettings settings(m_settingsFile);
+
+    ui->lEditPostgresIP->setText(settings.value("postgres_ip", "").toString());
+    ui->spinPostgresPort->setValue(settings.value("postgres_port", 5432).toInt());
+
+    QString user = settings.value("postgres_user", "").toString();
+    QString pass = settings.value("postgres_pass", "").toString();
+
+    if (!user.isEmpty() || !pass.isEmpty()) {
+        SimpleCrypt crypto(CipherKey);
+        if (!user.isEmpty())
+            user = crypto.decryptToString(user);
+        if (!pass.isEmpty())
+            pass = crypto.decryptToString(pass);
+    }
+
+    ui->lEditUsername->setText(user);
+    ui->lEditPassword->setText(pass);
+
+    ui->lEditNemposFePath->setText(settings.value("nemposfe_path", "").toString());
+    ui->lEditServerIP->setText(settings.value("server_ip", "").toString());
+    ui->spinServerPort->setValue(settings.value("server_port", 443).toInt());
+    ui->cbHttps->setChecked(settings.value("https", true).toBool());
 }
 
 void MainWindow::on_btnLoad_clicked()
@@ -127,9 +343,9 @@ void MainWindow::on_btnLoad_clicked()
     }
     if (haveInfo) {
         ui->btnLoad->setEnabled(false);
-        retrieveDatabases();
+        populateShopsTable();
         ui->btnLoad->setEnabled(true);
-        ui->btnCreate->setEnabled(ui->listDBs->count());
+        ui->btnCreate->setEnabled(ui->tableShops->rowCount());
     }
     else
         setStatus("Please fill in the missing fields", Error);
@@ -139,8 +355,8 @@ void MainWindow::on_btnCreate_clicked()
 {
     setStatus("");
     bool canCreate = true;
-    if (ui->listDBs->count() == 0 || ui->listDBs->selectedItems().count() == 0) {
-        ui->listDBs->setStyleSheet("border: 1px solid red");
+    if (ui->tableShops->rowCount() == 0 /*|| ui->listDBs->selectedItems().count() == 0*/) {
+        ui->tableShops->setStyleSheet("border: 1px solid red");
         canCreate = false;
         setStatus("Select at least one shop to continue", Error);
     }
@@ -170,7 +386,7 @@ void MainWindow::on_btnBrowse_clicked()
     }
 }
 
-void MainWindow::on_lineEditIP_textChanged(const QString&)
+void MainWindow::on_lEditPostgresIP_textChanged(const QString&)
 {
     QObject *source = sender();
     QLineEdit *lineEdit = dynamic_cast<QLineEdit*>(source);
@@ -184,7 +400,7 @@ void MainWindow::on_lineEditIP_textChanged(const QString&)
     }
 }
 
-void MainWindow::on_lEditCredential_textChanged(const QString&)
+void MainWindow::on_lEditUsername_textChanged(const QString&)
 {
     QObject *source = sender();
     QLineEdit *lineEdit = dynamic_cast<QLineEdit*>(source);
